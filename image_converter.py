@@ -50,15 +50,20 @@ def resize_image(image, to_height=640, to_width=480):
 
 
 def give_black_border(gray_image):
+    """
+    Add zeros on the border of the Gray Scale Image Matrix
+    :param gray_image: Gray Scale Image Matrix, type: numpy.ndarray
+    :return: Gray Scale Image Matrix with Zero Border, type: numpy.ndarray
+    """
     rows = gray_image.shape[0]
     zeros = np.zeros((rows, 1), np.uint8)
-    gray_image = np.hstack((gray_image, zeros))
-    gray_image = np.hstack((zeros, gray_image))
+    gray_image = np.hstack((gray_image, zeros))  # Add Zeros to the Right of the matrix
+    gray_image = np.hstack((zeros, gray_image))  # Add Zeros to the Left of the matrix
 
     cols = gray_image.shape[1]
     zeros = np.zeros((1, cols), np.uint8)
-    gray_image = np.vstack((gray_image, zeros))
-    gray_image = np.vstack((zeros, gray_image))
+    gray_image = np.vstack((gray_image, zeros))  # Add Zeros to the Bottom of te matrix
+    gray_image = np.vstack((zeros, gray_image))  # Add Zeros to the Top of the matrix
 
     return gray_image
 
@@ -92,6 +97,7 @@ def rgb_to_gray(rgb_image):
     """
     dimension = utils.dimension_of_matrix(rgb_image)  # Dimension of RGB Image
     # GRAY SCALE CONVERSION
+    # GRAY = (Red + Green + Blue) / 3
     gray_scale = np.array([[np.sum(rgb_image[i][j] // 3) // 1 for j in range(dimension[1])]
                            for i in range(dimension[0])], np.uint8)
     return gray_scale
@@ -104,13 +110,18 @@ def apply_blur_effects_to(gray_image, effect="mean"):
     :param effect: Type of Blur effects, type: str
     :return: Smoothened Image Matrix, type: numpy.ndarray
     """
-    if effect == "mean":
+    if effect == "mean":  # To apply Mean Blur
         return apply_mean_blur_effects_to(gray_image)
-    elif effect == "gaussian":
-        return apply_gaussian_blur_effects_to(gray_image, (3, 3), 20)
+    elif effect == "gaussian":  # To apply Gaussian Blur
+        return apply_gaussian_blur_effects_to(gray_image)
 
 
 def apply_mean_blur_effects_to(gray_image):
+    """
+    Smoothens the image with Mean Blur
+    :param gray_image: Gray Scale Image Matrix, type: numpy.ndarray
+    :return: Smoothened Image Matrix
+    """
     dimension = utils.dimension_of_matrix(gray_image)
     blurred_image = np.copy(gray_image)
 
@@ -120,17 +131,32 @@ def apply_mean_blur_effects_to(gray_image):
     return np.array(blurred_image, np.uint8)
 
 
-def apply_gaussian_blur_effects_to(gray_image, convolute_size, multiplier):
+def apply_gaussian_blur_effects_to(gray_image):
+    """
+    Smoothens the image with Gaussian Blur
+    :param gray_image: Gray Scale Image Matrix, type: numpy.ndarray
+    :return: Smoothened Image Matrix
+    """
     dimension = utils.dimension_of_matrix(gray_image)
     blurred_image = np.copy(gray_image)
     print("Gaussian")
 
     for i in range(1, dimension[0] - 1):
         for j in range(1, dimension[1] - 1):
-            blurred_image[i][j] = gaussian(gray_image[i - 1:i + 2, j - 1:j + 2], convolute_size, multiplier)
+            blurred_image[i][j] = gaussian(gray_image[i - 1:i + 2, j - 1:j + 2])
     return np.array(blurred_image, np.uint8)
 
 
-def gaussian(matrix, convolute_size, multiplier):
-    value = multiplier / (convolute_size[0] * convolute_size[1])
-    return np.round(np.sum(matrix) / value)
+def gaussian(matrix):
+    """
+    Returns Gaussian Blur value of the center pixel of the Matrix
+    :param matrix: 3 x 3 Matrix of pixel, type: numpy.ndarray
+    :return: Gaussian Blur Value
+    """
+    multiplier = np.array([[1, 2, 1], [2, 4, 2], [1, 2, 1]])
+    pixel = 0
+    # Computes Gaussian Blur Value
+    for i in range(3):
+        for j in range(3):
+            pixel += (matrix[i][j] * multiplier[i][j]) // 16
+    return np.round(pixel)
