@@ -160,3 +160,167 @@ def gaussian(matrix):
         for j in range(3):
             pixel += (matrix[i][j] * multiplier[i][j]) // 16
     return np.round(pixel)
+
+
+class SobelKernel:
+    def find_gx_gy(self, smooth_image):
+        gx = self.find_gx(smooth_image)
+        gy = self.find_gy(smooth_image)
+
+        return gx, gy
+
+    def find_gx(self, smooth_image):
+        dimension = smooth_image.shape
+        multiplier = np.array([[-1, -2, -1], [0, 0, 0], [1, 2, 1]])
+        gx = np.zeros(dimension)
+        for i in range(1, dimension[0] - 1):
+            for j in range(1, dimension[1] - 1):
+                gx[i][j] = self.find_value(smooth_image[i-1:i+2, j-1:j+2], multiplier)
+        return gx
+
+    def find_gy(self, smooth_image):
+        dimension = smooth_image.shape
+        multiplier = np.array([[-1, 0, 1], [-2, 0, 2], [-1, 0, 1]])
+        gy = np.zeros(dimension)
+        for i in range(1, dimension[0] - 1):
+            for j in range(1, dimension[1] - 1):
+                gy[i][j] = self.find_value(smooth_image[i-1:i+2, j-1:j+2], multiplier)
+        return gy
+
+    @staticmethod
+    def find_value(a, b):
+        return np.sum(a * b)
+
+
+class CannyEdgeDetection:
+    def find_magnitude_and_angle(self, gx, gy):
+        dimension = gx.shape
+        magnitude = np.zeros(dimension)
+        angle = np.zeros(dimension)
+
+        for i in range(dimension[0]):
+            for j in range(dimension[1]):
+                magnitude[i][j] = self.magnitude_(gx[i][j], gy[i][j])
+                angle[i][j] = self.angle_(gx[i][j], gy[i][j])
+        return magnitude, angle
+
+    @staticmethod
+    def magnitude_(gx, gy):
+        return np.sqrt(gx**2 + gy**2)
+
+    @staticmethod
+    def angle_(gx, gy):
+        return np.arctan2(gy, gx)
+
+    @staticmethod
+    def non_max_suppression(magnitude, angle):
+        dimension = magnitude.shape
+        suppressed_image = np.zeros(dimension)
+        angle = (angle / np.pi) * 180
+        angle[angle < 0] += 180
+
+        for i in range(1, dimension[0] - 1):
+            for j in range(1, dimension[1] - 1):
+                try:
+                    q = 255
+                    r = 255
+
+                    # angle 0
+                    if (0 <= angle[i][j] < 22.5) or (157.5 <= angle[i, j] <= 180):
+                        q = magnitude[i][j + 1]
+                        r = magnitude[i][j - 1]
+
+                    # angle 45
+                    elif 22.5 <= angle[i, j] < 67.5:
+                        q = magnitude[i + 1, j - 1]
+                        r = magnitude[i - 1, j + 1]
+
+                    # angle 90
+                    elif 67.5 <= angle[i, j] < 112.5:
+                        q = magnitude[i + 1, j]
+                        r = magnitude[i - 1, j]
+                    # angle 135
+                    elif 112.5 <= angle[i, j] < 157.5:
+                        q = magnitude[i - 1, j - 1]
+                        r = magnitude[i + 1, j + 1]
+
+                    else:
+                        pass
+
+                    if magnitude[i][j] >= q and magnitude[i][j] >= r:
+                        suppressed_image[i][j] = magnitude[i][j]
+                    else:
+                        suppressed_image[i][j] = 0
+                except IndexError:
+                    pass
+        return suppressed_image
+
+    @staticmethod
+    def threshold(suppressed_image):
+        high_threshold = 160  # np.max(suppressed_image) * 0.07
+        low_threshold = 100  # high_threshold * 0.03
+        dimension = suppressed_image.shape
+        threshold_image = np.zeros(dimension)
+
+        weak = np.int32(50)
+        strong = np.int32(255)
+
+        strong_i, strong_j = np.where(suppressed_image > high_threshold)
+        # zeros_i, zeros_j = np.where(suppressed_image < low_threshold)
+        weak_i, weak_j = np.where((suppressed_image <= high_threshold) & (suppressed_image >= low_threshold))
+
+        threshold_image[strong_i, strong_j] = strong
+        threshold_image[weak_i, weak_j] = weak
+
+        return threshold_image, weak, strong
+
+    @staticmethod
+    def apply_hysteresis(threshold_image, weak, strong):
+        dimension = threshold_image.shape
+        for i in range(1, dimension[0] - 1):
+            for j in range(1, dimension[1] - 1):
+                if threshold_image[i][j] == weak:
+                    try:
+                        if np.max(threshold_image[i-1:i+2, j-1:j+2]) == strong:
+                            threshold_image[i][j] = strong
+                        else:
+                            threshold_image[i][j] = 0
+                    except IndexError:
+                        pass
+        return threshold_image
+
+
+def apply_dilation(canny_edge_image, iteration=3):
+    dimension = canny_edge_image.shape
+    dilated_image = np.zeros(dimension)
+
+    for _ in range(iteration):
+        for i in range(1, dimension[0] - 1):
+            for j in range(1, dimension[1] - 1):
+                if canny_edge_image[i][j] == 0:
+                    top = canny_edge_image[i-1][j]
+                    bottom = canny_edge_image[i+1][j]
+                    left = canny_edge_image[i][j-1]
+                    right = canny_edge_image[i][j+1]
+
+                    strong = np.max((top, bottom, left, right))
+                    dilated_image[i-1:i+2, j-1:j+2] = strong
+
+    return dilated_image
+
+
+def apply_erosion(dilated_image, iteration=1):
+    dimension = dilated_image.shape
+    eroded_image = np.copy(dilated_image)
+
+    for _ in range(iteration):
+        for i in range(1, dimension[0] - 1):
+            for j in range(1, dimension[1] - 1):
+                if dilated_image[i][j] == 255:
+                    if (dilated_image[i-1][j] == 255 and dilated_image[i+1][j] == 255
+                            and dilated_image[i][j-1] == 255 and dilated_image[i][j+1] == 255):
+                        pass
+                    else:
+                        eroded_image[i][j] = 0
+
+    return eroded_image
