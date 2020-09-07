@@ -139,7 +139,6 @@ def apply_gaussian_blur_effects_to(gray_image):
     """
     dimension = utils.dimension_of_matrix(gray_image)
     blurred_image = np.copy(gray_image)
-    print("Gaussian")
 
     for i in range(1, dimension[0] - 1):
         for j in range(1, dimension[1] - 1):
@@ -213,9 +212,9 @@ class CannyEdgeDetection:
         return np.arctan2(gy, gx)
 
     @staticmethod
-    def non_max_suppression(magnitude, angle):
+    def non_max_suppression(smooth_image, magnitude, angle):
         dimension = magnitude.shape
-        suppressed_image = np.zeros(dimension)
+        suppressed_image = np.copy(smooth_image)
         angle = (angle / np.pi) * 180
         angle[angle < 0] += 180
 
@@ -248,7 +247,7 @@ class CannyEdgeDetection:
                         pass
 
                     if magnitude[i][j] >= q and magnitude[i][j] >= r:
-                        suppressed_image[i][j] = magnitude[i][j]
+                        suppressed_image[i][j] = smooth_image[i][j]
                     else:
                         suppressed_image[i][j] = 0
                 except IndexError:
@@ -257,20 +256,20 @@ class CannyEdgeDetection:
 
     @staticmethod
     def threshold(suppressed_image):
-        high_threshold = 160  # np.max(suppressed_image) * 0.07
-        low_threshold = 100  # high_threshold * 0.03
-        dimension = suppressed_image.shape
-        threshold_image = np.zeros(dimension)
+        high_threshold = np.max(suppressed_image) * 0.70
+        low_threshold = high_threshold * 0.30
+        threshold_image = np.copy(suppressed_image)
 
-        weak = np.int32(50)
+        weak = np.int32(30)
         strong = np.int32(255)
 
-        strong_i, strong_j = np.where(suppressed_image > high_threshold)
-        # zeros_i, zeros_j = np.where(suppressed_image < low_threshold)
-        weak_i, weak_j = np.where((suppressed_image <= high_threshold) & (suppressed_image >= low_threshold))
+        strong_i, strong_j = np.where(suppressed_image >= high_threshold)
+        zeros_i, zeros_j = np.where(suppressed_image < low_threshold)
+        weak_i, weak_j = np.where((suppressed_image < high_threshold) & (suppressed_image >= low_threshold))
 
         threshold_image[strong_i, strong_j] = strong
         threshold_image[weak_i, weak_j] = weak
+        threshold_image[zeros_i, zeros_j] = 0
 
         return threshold_image, weak, strong
 
@@ -281,7 +280,10 @@ class CannyEdgeDetection:
             for j in range(1, dimension[1] - 1):
                 if threshold_image[i][j] == weak:
                     try:
-                        if np.max(threshold_image[i-1:i+2, j-1:j+2]) == strong:
+                        if (threshold_image[i-1, j-1] == strong or threshold_image[i-1, j] == strong or
+                                threshold_image[i-1, j+1] == strong or threshold_image[i, j-1] == strong or
+                                threshold_image[i, j+1] == strong or threshold_image[i+1, j-1] == strong or
+                                threshold_image[i+1, j] == strong or threshold_image[i+1, j+1] == strong):
                             threshold_image[i][j] = strong
                         else:
                             threshold_image[i][j] = 0
@@ -292,19 +294,18 @@ class CannyEdgeDetection:
 
 def apply_dilation(canny_edge_image, iteration=3):
     dimension = canny_edge_image.shape
-    dilated_image = np.zeros(dimension)
+    dilated_image = np.copy(canny_edge_image)
 
     for _ in range(iteration):
         for i in range(1, dimension[0] - 1):
             for j in range(1, dimension[1] - 1):
                 if canny_edge_image[i][j] == 0:
-                    top = canny_edge_image[i-1][j]
-                    bottom = canny_edge_image[i+1][j]
-                    left = canny_edge_image[i][j-1]
-                    right = canny_edge_image[i][j+1]
-
-                    strong = np.max((top, bottom, left, right))
-                    dilated_image[i-1:i+2, j-1:j+2] = strong
+                    if (canny_edge_image[i-1][j] == 255 or canny_edge_image[i+1][j] == 255 or
+                            canny_edge_image[i][j-1] == 255 or canny_edge_image[i][j+1] == 255):
+                        dilated_image[i][j] = 255
+                    else:
+                        dilated_image[i][j] = 0
+        canny_edge_image = np.copy(dilated_image)
 
     return dilated_image
 
@@ -319,8 +320,162 @@ def apply_erosion(dilated_image, iteration=1):
                 if dilated_image[i][j] == 255:
                     if (dilated_image[i-1][j] == 255 and dilated_image[i+1][j] == 255
                             and dilated_image[i][j-1] == 255 and dilated_image[i][j+1] == 255):
-                        pass
+                        eroded_image[i][j] = 255
                     else:
                         eroded_image[i][j] = 0
-
+        dilated_image = np.copy(eroded_image)
     return eroded_image
+
+
+def crop_and_get_document(image):
+    dimension = image.shape
+    center_i, center_j = np.int32(dimension[0] // 2), np.int32(dimension[1] // 2)
+
+    top_left_i, top_left_j = center_i, center_j
+    while True:
+        if image[top_left_i - 10, top_left_j - 10] == 255:
+            top_left_i, top_left_j = top_left_i - 10, top_left_j - 10
+        elif image[top_left_i - 10, top_left_j] == 255:
+            top_left_i, top_left_j = top_left_i - 10, top_left_j
+        elif image[top_left_i, top_left_j - 10] == 255:
+            top_left_i, top_left_j = top_left_i, top_left_j - 10
+
+        elif image[top_left_i - 5, top_left_j - 5] == 255:
+            top_left_i, top_left_j = top_left_i - 5, top_left_j - 5
+        elif image[top_left_i - 5, top_left_j] == 255:
+            top_left_i, top_left_j = top_left_i - 5, top_left_j
+        elif image[top_left_i, top_left_j - 5] == 255:
+            top_left_i, top_left_j = top_left_i, top_left_j - 5
+
+        elif image[top_left_i - 3, top_left_j - 3] == 255:
+            top_left_i, top_left_j = top_left_i - 3, top_left_j - 3
+        elif image[top_left_i - 3, top_left_j] == 255:
+            top_left_i, top_left_j = top_left_i - 3, top_left_j
+        elif image[top_left_i, top_left_j - 3] == 255:
+            top_left_i, top_left_j = top_left_i, top_left_j - 3
+        else:
+            break
+
+    top_right_i, top_right_j = center_i, center_j
+    while True:
+        if image[top_right_i - 10, top_right_j + 10] == 255:
+            top_right_i, top_right_j = top_right_i - 10, top_right_j + 10
+        elif image[top_right_i - 10, top_right_j] == 255:
+            top_right_i, top_right_j = top_right_i - 10, top_right_j
+        elif image[top_right_i, top_right_j + 10] == 255:
+            top_right_i, top_right_j = top_right_i, top_right_j + 10
+
+        elif image[top_right_i - 5, top_right_j + 5] == 255:
+            top_right_i, top_right_j = top_right_i - 5, top_right_j + 5
+        elif image[top_right_i - 5, top_right_j] == 255:
+            top_right_i, top_right_j = top_right_i - 5, top_right_j
+        elif image[top_right_i, top_right_j + 5] == 255:
+            top_right_i, top_right_j = top_right_i, top_right_j + 5
+
+        elif image[top_right_i - 3, top_right_j + 3] == 255:
+            top_right_i, top_right_j = top_right_i - 3, top_right_j + 3
+        elif image[top_right_i - 3, top_right_j] == 255:
+            top_right_i, top_right_j = top_right_i - 3, top_right_j
+        elif image[top_right_i, top_right_j + 3] == 255:
+            top_right_i, top_right_j = top_right_i, top_right_j + 3
+        else:
+            break
+
+    bottom_left_i, bottom_left_j = center_i, center_j
+    while True:
+        if image[bottom_left_i + 10, bottom_left_j - 10] == 255:
+            bottom_left_i, bottom_left_j = bottom_left_i + 10, bottom_left_j - 10
+        elif image[bottom_left_i + 10, bottom_left_j] == 255:
+            bottom_left_i, bottom_left_j = bottom_left_i + 10, bottom_left_j
+        elif image[bottom_left_i, bottom_left_j - 10] == 255:
+            bottom_left_i, bottom_left_j = bottom_left_i, bottom_left_j - 10
+
+        elif image[bottom_left_i + 5, bottom_left_j - 5] == 255:
+            bottom_left_i, bottom_left_j = bottom_left_i + 5, bottom_left_j - 5
+        elif image[bottom_left_i + 5, bottom_left_j] == 255:
+            bottom_left_i, bottom_left_j = bottom_left_i + 5, bottom_left_j
+        elif image[bottom_left_i, bottom_left_j - 5] == 255:
+            bottom_left_i, bottom_left_j = bottom_left_i, bottom_left_j - 5
+
+        elif image[bottom_left_i + 3, bottom_left_j - 3] == 255:
+            bottom_left_i, bottom_left_j = bottom_left_i + 3, bottom_left_j - 3
+        elif image[bottom_left_i + 3, bottom_left_j] == 255:
+            bottom_left_i, bottom_left_j = bottom_left_i + 3, bottom_left_j
+        elif image[bottom_left_i, bottom_left_j - 3] == 255:
+            bottom_left_i, bottom_left_j = bottom_left_i, bottom_left_j - 3
+        else:
+            break
+
+    bottom_right_i, bottom_right_j = center_i, center_j
+    while True:
+        if image[bottom_right_i + 10, bottom_right_j + 10] == 255:
+            bottom_right_i, bottom_right_j = bottom_right_i + 10, bottom_right_j + 10
+        elif image[bottom_right_i + 10, bottom_right_j] == 255:
+            bottom_right_i, bottom_right_j = bottom_right_i + 10, bottom_right_j
+        elif image[bottom_right_i, bottom_right_j + 10] == 255:
+            bottom_right_i, bottom_right_j = bottom_right_i, bottom_right_j + 10
+
+        elif image[bottom_right_i + 5, bottom_right_j + 5] == 255:
+            bottom_right_i, bottom_right_j = bottom_right_i + 5, bottom_right_j + 5
+        elif image[bottom_right_i + 5, bottom_right_j] == 255:
+            bottom_right_i, bottom_right_j = bottom_right_i + 5, bottom_right_j
+        elif image[bottom_right_i, bottom_right_j + 5] == 255:
+            bottom_right_i, bottom_right_j = bottom_right_i, bottom_right_j + 5
+
+        elif image[bottom_right_i + 3, bottom_right_j + 3] == 255:
+            bottom_right_i, bottom_right_j = bottom_right_i + 3, bottom_right_j + 3
+        elif image[bottom_right_i + 3, bottom_right_j] == 255:
+            bottom_right_i, bottom_right_j = bottom_right_i + 3, bottom_right_j
+        elif image[bottom_right_i, bottom_right_j + 3] == 255:
+            bottom_right_i, bottom_right_j = bottom_right_i, bottom_right_j + 3
+        else:
+            break
+
+    row_1 = np.min((top_left_i, top_right_i))
+    row_2 = np.max((bottom_left_i, bottom_right_j))
+    col_1 = np.min((top_left_j, bottom_left_j))
+    col_2 = np.max((top_right_j, bottom_right_j))
+
+    return [row_1, row_2, col_1, col_2]
+
+
+def apply_adaptive_threshold(image):
+    dimension = image.shape
+    adaptive_threshold_image = np.copy(image)
+
+    for i in range(2, dimension[0] - 2):
+        for j in range(2, dimension[1] - 2):
+            if adaptive_threshold_image[i][j] >= np.median(image[i-2:i+3, j-2:j+3]):
+                adaptive_threshold_image[i][j] = 25
+            else:
+                adaptive_threshold_image[i][j] = 230
+    return adaptive_threshold_image
+
+
+def apply_bitwise_not(image):
+    dimension = image.shape
+    for i in range(3, dimension[0] - 3):
+        for j in range(3, dimension[1] - 3):
+            if image[i][j] == 25:
+                image[i][j] = 230
+            else:
+                image[i][j] = 25
+    return image
+
+
+def apply_median_blur(image):
+    dimension = image.shape
+    median_blur_image = np.copy(image)
+    for i in range(2, dimension[0] - 2):
+        for j in range(2, dimension[1] - 2):
+            median_blur_image[i][j] = np.median(image[i-2:i+3, j-2:j+3])
+    return median_blur_image
+
+
+def apply_mean_blur(image):
+    dimension = image.shape
+    mean_blur_image = np.copy(image)
+    for i in range(2, dimension[0] - 2):
+        for j in range(2, dimension[1] - 2):
+            mean_blur_image[i][j] = np.mean(image[i-2:i+3, j-2:j+3])
+    return mean_blur_image
