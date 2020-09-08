@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <!-- Required meta tags -->
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+    <!-- Bootstrap CSS -->
+    <link rel="stylesheet" href="{{url_for('static', filename = 'css/bootstrap.min.css')}}">
+
+      <link rel="stylesheet" href="{{url_for('static', filename = 'css/scanner.min.css')}}">
+
+    <title>Document Scanner</title>
+  </head>
+  <body>
+
+  <div class="container">
+      <h1 class="heading">Document Scanner</h1>
+      <div class="row">
+          <div class="offset-3 col-6">
+              <form action="/scan-image" method="POST" enctype="multipart/form-data">
+                <div class="form-group text-center">
+                  <div class="custom-file">
+                    <input type="file" class="custom-file-input" src="a.jpg" name="image" id="image">
+                    <label class="custom-file-label" for="image">Select image... </label>
+                  </div>
+                </div>
+                <button type="submit" class="btn btn-primary btn-block text-center">Upload & Scan</button>
+              </form>
+          </div>
+      </div>
+      {% if flag == 1 %}
+      <div class="row top-margin">
+          <div class="col-12 col-md-6 text-center">
+              <h3 class="bottom-margin">Uploaded Image</h3>
+              <img class="img-thumbnail img-fluid" src="{{ image }}" alt="image uploaded">
+          </div>
+          <div class="col-12 col-md-6 text-center">
+              <h3 class="bottom-margin">Scanned Image</h3>
+              <img src="/static/scanned/final_scanned.jpg" alt="image scanned">
+          </div>
+      </div>
+      {% endif %}
+  </div>
+
+    <!-- Optional JavaScript -->
+    <!-- jQuery first, then Popper.js, then Bootstrap JS -->
+    <script src="{{url_for('static', filename = 'js/jquery-3.5.1.slim.min.js')}}"></script>
+    <script src="{{url_for('static', filename = 'js/popper.min.js')}}"></script>
+    <script src="{{url_for('static', filename = 'js/bootstrap.min.js')}}"></script>
+  </body>
+</html>

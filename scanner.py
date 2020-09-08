@@ -5,11 +5,11 @@ import image_converter
 
 class Scanner:
     @staticmethod
-    def scan():
+    def scan(image):
         # Setting PATH for image(.jpg format)
-        root_path = "images/"  # Root Path
-        image_name = "1.jpg"  # Image Name
-        image = root_path + image_name  # Path to image
+        # root_path = "images/"  # Root Path
+        # image_name = "1.jpg"  # Image Name
+        # image = root_path + image_name  # Path to image
 
         # JPG image to RGB format
         rgb_image_matrix = cv2.imread(image)
@@ -24,7 +24,8 @@ class Scanner:
         gray_scale_image_matrix = image_converter.give_black_border(gray_scale_image_matrix)
 
         # APPLYING BLUR EFFECT TO GRAY SCALE IMAGE
-        blurred_image_matrix = image_converter.apply_blur_effects_to(gray_scale_image_matrix, effect="gaussian")
+        blurred_image_matrix = image_converter.apply_blur_effects_to(gray_scale_image_matrix,
+                                                                     effect="gaussian")
 
         # INITIALIZING THRESHOLD VALUE
         # threshold_1, threshold_2 = 50, 200
@@ -35,7 +36,8 @@ class Scanner:
 
         canny_edge_detector = image_converter.CannyEdgeDetection()
         magnitude, angle = canny_edge_detector.find_magnitude_and_angle(gx, gy)
-        image_after_non_max_suppression = canny_edge_detector.non_max_suppression(blurred_image_matrix, magnitude, angle)
+        image_after_non_max_suppression = canny_edge_detector.non_max_suppression(blurred_image_matrix,
+                                                                                  magnitude, angle)
         threshold_image, weak, strong = canny_edge_detector.threshold(image_after_non_max_suppression)
         # cv2.imwrite("scanned/threshold_image" + ".jpg", threshold_image)
         canny_edge_image = canny_edge_detector.apply_hysteresis(threshold_image, weak, strong)
@@ -56,7 +58,7 @@ class Scanner:
         scanned_image = image_converter.apply_bitwise_not(adaptive_threshold_image)
         # cv2.imwrite("scanned/bitwise_not" + ".jpg", scanned_image)
         # scanned_image = image_converter.apply_median_blur(scanned_image)
-        cv2.imwrite("scanned/final_scanned" + ".jpg", scanned_image)
+        cv2.imwrite("static/scanned/final_scanned" + ".jpg", scanned_image)
 
         # cv2.imwrite("scanned/1_scanned" + ".jpg", resized_image_matrix)
         # cv2.imwrite("scanned/2_scanned" + ".jpg", gray_scale_image_matrix)
