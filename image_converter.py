@@ -34,7 +34,6 @@ def resize_image(image, to_height=640, to_width=480):
             end_j = start_j + col_px  # End Column Pixel of original RGB image
             if end_j > optimal_dimension[1] * col_px:  # Break when crosses last column pixel of original Image
                 break
-            # print(end_i, end_j)
 
             # Multiple pixel to Single pixel --> Replacing with average RGB pixel values
             resized_image[resize_i][resize_j] = reduce_to_one_px(image,
@@ -122,11 +121,12 @@ def apply_mean_blur_effects_to(gray_image):
     :param gray_image: Gray Scale Image Matrix, type: numpy.ndarray
     :return: Smoothened Image Matrix
     """
-    dimension = utils.dimension_of_matrix(gray_image)
-    blurred_image = np.copy(gray_image)
+    dimension = utils.dimension_of_matrix(gray_image)  # Dimension of Gray-scale Image
+    blurred_image = np.copy(gray_image)  # Deep copy of Gray-scale Image
 
     for i in range(1, dimension[0] - 1):
         for j in range(1, dimension[1] - 1):
+            # Smoothening each pixels of image by taking mean of 3 x 3 kernel
             blurred_image[i][j] = (np.sum(gray_image[i - 1:i + 2, j - 1:j + 2]) // 9) // 1
     return np.array(blurred_image, np.uint8)
 
@@ -137,8 +137,8 @@ def apply_gaussian_blur_effects_to(gray_image):
     :param gray_image: Gray Scale Image Matrix, type: numpy.ndarray
     :return: Smoothened Image Matrix
     """
-    dimension = utils.dimension_of_matrix(gray_image)
-    blurred_image = np.copy(gray_image)
+    dimension = utils.dimension_of_matrix(gray_image)  # Dimension of Image
+    blurred_image = np.copy(gray_image)  # Copy of Gray-scale Image
 
     for i in range(1, dimension[0] - 1):
         for j in range(1, dimension[1] - 1):
@@ -162,27 +162,53 @@ def gaussian(matrix):
 
 
 class SobelKernel:
+    """
+    SOBEL Kernel to find Gx and Gy
+    """
     def find_gx_gy(self, smooth_image):
-        gx = self.find_gx(smooth_image)
-        gy = self.find_gy(smooth_image)
+        """
+        Returns the values of Gx and Gy from the smoothened Image
+        :param smooth_image: Smoothened Image matrix, type: numpy.ndarray
+        :return: Gx and Gy, type: tuple(int, int)
+        """
+        gx = self.find_gx(smooth_image)  # Gx
+        gy = self.find_gy(smooth_image)  # Gy
 
         return gx, gy
 
     def find_gx(self, smooth_image):
+        """
+        Returns Horizontal Intensity Gradient Image Matrix
+        [[-1, -2, -1],
+         [ 0,  0,  0],
+         [ 1,  2,  1]]
+        :param smooth_image: Smoothened Image
+        :return: Gx Matrix
+        """
         dimension = smooth_image.shape
         multiplier = np.array([[-1, -2, -1], [0, 0, 0], [1, 2, 1]])
         gx = np.zeros(dimension)
         for i in range(1, dimension[0] - 1):
             for j in range(1, dimension[1] - 1):
+                # Horizontal Intensity Gradients of the pixel
                 gx[i][j] = self.find_value(smooth_image[i-1:i+2, j-1:j+2], multiplier)
         return gx
 
     def find_gy(self, smooth_image):
+        """
+        Returns Vertical Intensity Gradient Image Matrix
+        [[-1,  0,  1],
+         [-2,  0,  2],
+         [-1,  0,  1]]
+        :param smooth_image:
+        :return:
+        """
         dimension = smooth_image.shape
         multiplier = np.array([[-1, 0, 1], [-2, 0, 2], [-1, 0, 1]])
         gy = np.zeros(dimension)
         for i in range(1, dimension[0] - 1):
             for j in range(1, dimension[1] - 1):
+                # Vertical Intensity Gradients of the pixel
                 gy[i][j] = self.find_value(smooth_image[i-1:i+2, j-1:j+2], multiplier)
         return gy
 
@@ -192,7 +218,16 @@ class SobelKernel:
 
 
 class CannyEdgeDetection:
+    """
+    Detects Edge of the image using Canny Edge Detector
+    """
     def find_magnitude_and_angle(self, gx, gy):
+        """
+        Returns the magnitude and angle of the image.
+        :param gx: Horizontal Intensity Gradient of the Matrix
+        :param gy: Vertical Intensity Gradient of the Matrix
+        :return: Magnitude and Angle of the matrix
+        """
         dimension = gx.shape
         magnitude = np.zeros(dimension)
         angle = np.zeros(dimension)
@@ -205,17 +240,38 @@ class CannyEdgeDetection:
 
     @staticmethod
     def magnitude_(gx, gy):
+        """
+        Magnitude of the Image
+        :param gx: Horizontal Intensity Gradient of the Pixel
+        :param gy: Vertical Intensity Gradient of the Pixel
+        :return: Magnitude of the Pixel
+        """
         return np.sqrt(gx**2 + gy**2)
 
     @staticmethod
     def angle_(gx, gy):
+        """
+        Angle of the Image in Radians
+        :param gx: Horizontal Intensity Gradient of the Pixel
+        :param gy: Vertical Intensity Gradient of the Pixel
+        :return: Angle of the Pixel in Radians
+        """
         return np.arctan2(gy, gx)
 
     @staticmethod
     def non_max_suppression(smooth_image, magnitude, angle):
+        """
+        Non-maximum suppression is an edge thinning technique.
+        Non-maximum suppression is applied to find the locations
+        with the sharpest change of intensity value.
+        :param smooth_image: Smoothened Image
+        :param magnitude: Magnitude Matrix
+        :param angle: Angle of the Matrix in Radians
+        :return: Sharpen the Intensity
+        """
         dimension = magnitude.shape
         suppressed_image = np.copy(smooth_image)
-        angle = (angle / np.pi) * 180
+        angle = (angle / np.pi) * 180  # Conversion from radians to Degrees
         angle[angle < 0] += 180
 
         for i in range(1, dimension[0] - 1):
@@ -223,17 +279,14 @@ class CannyEdgeDetection:
                 try:
                     q = 255
                     r = 255
-
-                    # angle 0
+                    # angle 0 [157.5 to 22.5]
                     if (0 <= angle[i][j] < 22.5) or (157.5 <= angle[i, j] <= 180):
                         q = magnitude[i][j + 1]
                         r = magnitude[i][j - 1]
-
                     # angle 45
                     elif 22.5 <= angle[i, j] < 67.5:
                         q = magnitude[i + 1, j - 1]
                         r = magnitude[i - 1, j + 1]
-
                     # angle 90
                     elif 67.5 <= angle[i, j] < 112.5:
                         q = magnitude[i + 1, j]
@@ -242,7 +295,6 @@ class CannyEdgeDetection:
                     elif 112.5 <= angle[i, j] < 157.5:
                         q = magnitude[i - 1, j - 1]
                         r = magnitude[i + 1, j + 1]
-
                     else:
                         pass
 
@@ -256,15 +308,21 @@ class CannyEdgeDetection:
 
     @staticmethod
     def threshold(suppressed_image):
-        high_threshold = np.max(suppressed_image) * 0.70
-        low_threshold = high_threshold * 0.30
+        """
+        Returns image with only three possible pixel values zero, weak and strong
+        :param suppressed_image: Image after non-max suppression
+        :return: Threshold image with only three possible pixel values zero, weak and strong
+        """
+        high_threshold = np.max(suppressed_image) * 0.70  # Setting High Threshold Value
+        low_threshold = high_threshold * 0.30  # Setting Low Threshold Value
         threshold_image = np.copy(suppressed_image)
 
-        weak = np.int32(30)
-        strong = np.int32(255)
+        weak = np.int32(30)  # Value for weak pixels
+        strong = np.int32(255)  # Value for strong pixels
 
-        strong_i, strong_j = np.where(suppressed_image >= high_threshold)
-        zeros_i, zeros_j = np.where(suppressed_image < low_threshold)
+        strong_i, strong_j = np.where(suppressed_image >= high_threshold)  # If pixel >= High Threshold
+        zeros_i, zeros_j = np.where(suppressed_image < low_threshold)  # If pixel < Low Threshold
+        # If Low Threshold <= Pixel < High Threshold
         weak_i, weak_j = np.where((suppressed_image < high_threshold) & (suppressed_image >= low_threshold))
 
         threshold_image[strong_i, strong_j] = strong
@@ -275,6 +333,14 @@ class CannyEdgeDetection:
 
     @staticmethod
     def apply_hysteresis(threshold_image, weak, strong):
+        """
+        Tracking Edge by Hysteresis.
+        Converts weak pixel to either 0 or 255 by means of neighbour pixel.
+        :param threshold_image: Threshold image, type: numpy.ndarray
+        :param weak: weak pixel value, type: int
+        :param strong: strong pixel value, type: int
+        :return: Image with only two possible pixel values (0 and 255)
+        """
         dimension = threshold_image.shape
         for i in range(1, dimension[0] - 1):
             for j in range(1, dimension[1] - 1):
@@ -293,6 +359,12 @@ class CannyEdgeDetection:
 
 
 def apply_dilation(canny_edge_image, iteration=3):
+    """
+    Applies dilation to the Image
+    :param canny_edge_image: Edge detected image, type: numpy.ndarray
+    :param iteration: Number of iteration to apply dilation, type: int
+    :return: Dilated Image
+    """
     dimension = canny_edge_image.shape
     dilated_image = np.copy(canny_edge_image)
 
@@ -328,9 +400,17 @@ def apply_erosion(dilated_image, iteration=1):
 
 
 def crop_and_get_document(image):
+    """
+    Detects the four edges of the images.
+    Top row, Botom row, Left column, Right column
+    :param image: Image Matrix
+    :return: Cropping row and column.
+    """
     dimension = image.shape
+    # Center Pixel of the image
     center_i, center_j = np.int32(dimension[0] // 2), np.int32(dimension[1] // 2)
 
+    # Top Left Pixel
     top_left_i, top_left_j = center_i, center_j
     while True:
         if image[top_left_i - 10, top_left_j - 10] == 255:
@@ -356,6 +436,7 @@ def crop_and_get_document(image):
         else:
             break
 
+    # Top Right Pixel
     top_right_i, top_right_j = center_i, center_j
     while True:
         if image[top_right_i - 10, top_right_j + 10] == 255:
@@ -381,6 +462,7 @@ def crop_and_get_document(image):
         else:
             break
 
+    # Bottom Left Pixel
     bottom_left_i, bottom_left_j = center_i, center_j
     while True:
         if image[bottom_left_i + 10, bottom_left_j - 10] == 255:
@@ -406,6 +488,7 @@ def crop_and_get_document(image):
         else:
             break
 
+    # Bottom Right Pixel
     bottom_right_i, bottom_right_j = center_i, center_j
     while True:
         if image[bottom_right_i + 10, bottom_right_j + 10] == 255:
@@ -431,15 +514,20 @@ def crop_and_get_document(image):
         else:
             break
 
-    row_1 = np.min((top_left_i, top_right_i))
-    row_2 = np.max((bottom_left_i, bottom_right_j))
-    col_1 = np.min((top_left_j, bottom_left_j))
-    col_2 = np.max((top_right_j, bottom_right_j))
+    row_1 = np.min((top_left_i, top_right_i))  # Top row
+    row_2 = np.max((bottom_left_i, bottom_right_j))  # Bottom row
+    col_1 = np.min((top_left_j, bottom_left_j))  # Left column
+    col_2 = np.max((top_right_j, bottom_right_j))  # Right column
 
     return [row_1, row_2, col_1, col_2]
 
 
 def apply_adaptive_threshold(image):
+    """
+    Applies Adaptive Threshold with 7 x 7 kernel
+    :param image:
+    :return:
+    """
     dimension = image.shape
     adaptive_threshold_image = np.copy(image)
 
